@@ -1,4 +1,6 @@
 import time
+import os
+import datetime
 from playwright.sync_api import sync_playwright
 import pandas as pd
 import argparse
@@ -9,6 +11,15 @@ def extract_data(xpath, page):
         return page.locator(xpath).inner_text().strip()
     return ""
 
+def get_unique_filename(base_filename="result", ext=".csv"):
+    """Membuat nama file unik agar tidak menimpa file sebelumnya."""
+    counter = 0
+    filename = f"{base_filename}{ext}"
+    while os.path.exists(filename):
+        counter += 1
+        filename = f"{base_filename}_{counter}{ext}"
+    return filename
+
 def main(search_for, total):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -16,19 +27,19 @@ def main(search_for, total):
         
         print(f"🔍 Mencari: {search_for}")
         page.goto("https://www.google.com/maps", timeout=60000)
-        time.sleep(3)  # Tambah waktu tunggu
+        time.sleep(3)
         
         page.locator('//input[@id="searchboxinput"]').fill(search_for)
         page.keyboard.press("Enter")
-        page.wait_for_selector('//a[contains(@href, "https://www.google.com/maps/place")]', timeout=15000)  # Tambah waktu tunggu
+        page.wait_for_selector('//a[contains(@href, "https://www.google.com/maps/place")]', timeout=15000)
         
         # Scroll untuk memuat semua hasil
         previously_counted = 0
-        max_attempts = 10  # Batas maksimal scrolling
+        max_attempts = 10
         attempts = 0
         while True:
             page.mouse.wheel(0, 10000)
-            time.sleep(3)  # Tambah waktu tunggu
+            time.sleep(3)
             found_count = page.locator('//a[contains(@href, "https://www.google.com/maps/place")]').count()
             if found_count >= total or attempts >= max_attempts:
                 break
@@ -55,7 +66,7 @@ def main(search_for, total):
             try:
                 print(f"📍 Scraping {idx+1}/{len(listings)}")
                 listing.click()
-                time.sleep(4)  # Tambah waktu tunggu
+                time.sleep(4)
                 
                 data = {
                     "Name": extract_data('//div[@class="TIHn2 "]//h1[@class="DUwDvf lfPIob"]', page),
@@ -70,10 +81,11 @@ def main(search_for, total):
             except Exception as e:
                 print(f"⚠️ Error scraping listing {idx+1}: {e}")
         
-        # Simpan hasil ke CSV
+        # Simpan hasil ke CSV dengan nama unik
+        filename = get_unique_filename()
         df = pd.DataFrame(results)
-        df.to_csv('result.csv', index=False)
-        print("✅ Data berhasil disimpan ke result.csv")
+        df.to_csv(filename, index=False)
+        print(f"✅ Data berhasil disimpan ke {filename}")
 
         browser.close()
 
